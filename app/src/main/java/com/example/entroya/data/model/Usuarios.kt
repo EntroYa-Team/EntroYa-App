@@ -1,10 +1,9 @@
 package com.example.entroya.data.model
 
 import kotlinx.datetime.Instant
-import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
-import kotlin.OptIn
+import kotlinx.serialization.InternalSerializationApi
 
 @OptIn(InternalSerializationApi::class)
 @Serializable
@@ -21,5 +20,5 @@ data class Usuario(
     val fechaContratacion: Instant? = null,
     @SerialName("fecha_creacion")
     @Serializable(with = InstantSerializer::class)
-    val fechaCreacion: Instant
+    val fechaCreacion: Instant? = null
 )

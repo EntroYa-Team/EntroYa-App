@@ -1,83 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:orientation="vertical"
+    android:padding="16dp">
 
     <TextView
-        android:id="@+id/text_logo"
-        android:layout_width="wrap_content"
+        android:id="@+id/text_nfc_status"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="EntroYa"
-        android:textSize="48sp"
+        android:text="📱 Estado NFC"
+        android:textSize="16sp"
         android:textStyle="bold"
-        app:layout_constraintBottom_toTopOf="@+id/text_subtitle"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed" />
+        android:padding="8dp"
+        android:background="#E0E0E0"
+        android:layout_marginBottom="16dp"/>
 
     <TextView
-        android:id="@+id/text_subtitle"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Fichajes Laborales"
-        android:textSize="18sp"
-        app:layout_constraintBottom_toTopOf="@+id/edittext_user_id"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/text_logo" />
+        android:text="ID de Usuario (manual):"
+        android:textSize="14sp"/>
 
     <EditText
         android:id="@+id/edittext_user_id"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:hint="Introduce ID de usuario"
+        android:hint="Introduce ID"
         android:inputType="number"
-        android:minWidth="200dp"
-        android:textAlignment="center"
-        app:layout_constraintBottom_toTopOf="@+id/text_selected_user_name"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/text_subtitle" />
+        android:layout_marginBottom="8dp"/>
 
     <TextView
         android:id="@+id/text_selected_user_name"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Usuario: -"
+        android:text="👤 Usuario: -"
         android:textSize="16sp"
-        app:layout_constraintBottom_toTopOf="@+id/button_clock_in"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/edittext_user_id" />
+        android:textStyle="bold"
+        android:padding="8dp"
+        android:layout_marginBottom="16dp"/>
 
-    <Button
-        android:id="@+id/button_clock_in"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="Fichar Entrada"
-        app:layout_constraintBottom_toTopOf="@+id/button_clock_out"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/text_selected_user_name" />
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="16dp">
 
+        <Button
+            android:id="@+id/button_clock_in"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="ENTRADA MANUAL"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/button_clock_out"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="SALIDA MANUAL"/>
+    </LinearLayout>
+
+    <!-- 👇 NUEVO BOTÓN DE ADMINISTRACIÓN -->
     <Button
-        android:id="@+id/button_clock_out"
-        android:layout_width="wrap_content"
+        android:id="@+id/button_admin"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:text="👑 ADMIN: Asignar tarjetas NFC"
+        android:backgroundTint="#FF9800"
         android:layout_marginTop="16dp"
-        android:text="Fichar Salida"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/button_clock_in" />
+        android:layout_marginBottom="8dp"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="O usa tu tarjeta NFC para fichar"
+        android:textAlignment="center"
+        android:textStyle="italic"
+        android:textSize="14sp"/>
+
+</LinearLayout>

@@ -77,10 +77,11 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.fragment.ktx)
 
+
     // Supabase
-    implementation("io.github.jan-tennert.supabase:supabase-kt:1.4.1")
-    implementation("io.github.jan-tennert.supabase:gotrue-kt:1.4.1")
-    implementation("io.github.jan-tennert.supabase:postgrest-kt:1.4.1")
+    implementation("io.github.jan-tennert.supabase:supabase-kt:2.0.0")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.0.0")
+    implementation("io.github.jan-tennert.supabase:gotrue-kt:2.0.0")
 
     // Ktor Client
     implementation("io.ktor:ktor-client-android:2.3.0")
@@ -102,4 +103,6 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
 }
