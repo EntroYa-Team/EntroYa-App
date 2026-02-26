@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="#F5F5F5">
 
     <TextView
         android:id="@+id/text_nfc_status"
@@ -13,66 +15,71 @@
         android:text="📱 Estado NFC"
         android:textSize="16sp"
         android:textStyle="bold"
-        android:padding="8dp"
+        android:padding="12dp"
         android:background="#E0E0E0"
-        android:layout_marginBottom="16dp"/>
+        android:textColor="#000000"
+        android:layout_marginBottom="24dp"/>
 
-    <TextView
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/input_layout_user_id"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="ID de Usuario (manual):"
-        android:textSize="14sp"/>
+        android:hint="ID de Usuario (manual)"
+        android:layout_marginBottom="8dp">
 
-    <EditText
-        android:id="@+id/edittext_user_id"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Introduce ID"
-        android:inputType="number"
-        android:layout_marginBottom="8dp"/>
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edittext_user_id"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number" />
+
+    </com.google.android.material.textfield.TextInputLayout>
 
     <TextView
         android:id="@+id/text_selected_user_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="👤 Usuario: -"
-        android:textSize="16sp"
+        android:textSize="18sp"
         android:textStyle="bold"
-        android:padding="8dp"
-        android:layout_marginBottom="16dp"/>
+        android:padding="12dp"
+        android:layout_marginBottom="24dp"
+        android:textColor="#000000"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
         android:layout_marginBottom="16dp">
 
-        <Button
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/button_clock_in"
+            style="@style/Widget.Material3.Button"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="ENTRADA MANUAL"
             android:layout_marginEnd="8dp"/>
 
-        <Button
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/button_clock_out"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="SALIDA MANUAL"/>
     </LinearLayout>
 
-    <!-- 👇 NUEVO BOTÓN DE ADMINISTRACIÓN -->
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/button_admin"
+        style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="👑 ADMIN: Asignar tarjetas NFC"
-        android:backgroundTint="#FF9800"
         android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="8dp"
+        app:backgroundTint="#FF9800"/>
 
     <TextView
         android:layout_width="match_parent"
@@ -80,6 +87,24 @@
         android:text="O usa tu tarjeta NFC para fichar"
         android:textAlignment="center"
         android:textStyle="italic"
-        android:textSize="14sp"/>
+        android:textSize="14sp"
+        android:textColor="#666666"/>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <ImageView
+        android:layout_width="300dp"
+        android:layout_height="500dp"
+        android:layout_gravity="center_horizontal"
+        android:src="@drawable/entroya"
+        android:contentDescription="Logo de EntroYa" />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="6" />
 
 </LinearLayout>

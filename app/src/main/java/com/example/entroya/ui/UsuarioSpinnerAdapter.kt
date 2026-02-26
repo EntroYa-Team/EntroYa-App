@@ -6,7 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.TextView
-import com.example.entroya.R
 import com.example.entroya.data.model.Usuario
 
 class UsuarioSpinnerAdapter(context: Context, usuarios: List<Usuario>) :
