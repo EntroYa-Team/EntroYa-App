@@ -27,55 +27,49 @@ class MainViewModel : ViewModel() {
     private val _foundUser = MutableStateFlow<Usuario?>(null)
     val foundUser = _foundUser.asStateFlow()
 
-    private var userList: List<Usuario> = emptyList()
-
-    // LiveData para el spinner de usuarios
     private val _userListLiveData = MutableLiveData<List<Usuario>>()
     val userListLiveData: LiveData<List<Usuario>> = _userListLiveData
 
     init {
-        Log.d(TAG, "🚀 ViewModel iniciado")
         loadUsers()
     }
 
     private fun loadUsers() {
         viewModelScope.launch {
-            Log.d(TAG, "🔄 Cargando usuarios...")
             try {
-                userList = FichajesRepository.getUsers()
-                _userListLiveData.postValue(userList)  // Actualizar LiveData
-                if (userList.isEmpty()) {
-                    Log.e(TAG, "⚠️ No hay usuarios en la base de datos")
-                    _uiEvents.emit("⚠️ No hay usuarios en la base de datos")
-                } else {
-                    Log.d(TAG, "✅ Usuarios cargados: ${userList.size}")
-                    _uiEvents.emit("✅ Usuarios cargados correctamente: ${userList.size} usuarios")
-                }
+                val userList = FichajesRepository.getUsers()
+                _userListLiveData.postValue(userList)
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error al cargar usuarios: ${e.message}")
-                _uiEvents.emit("❌ Error al cargar usuarios: ${e.message}")
+                Log.e(TAG, "Error cargando usuarios: ${e.message}")
             }
         }
     }
 
-    fun findUserById(userId: String) {
-        Log.d(TAG, "🔍 Buscando usuario con ID: $userId")
-        val id = userId.toIntOrNull()
+    fun loginManual(emailInput: String, passwordInput: String) {
+        val mail = emailInput.trim()
+        val pass = passwordInput.trim()
 
-        if (id == null) {
-            Log.d(TAG, "❌ ID inválido: no es un número")
-            _foundUser.value = null
-            return
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "🔍 Buscando credenciales en la tabla 'usuarios'...")
+                
+                // Buscamos directamente en la tabla por email y contraseña
+                val usuario = FichajesRepository.getUsuarioByCredentials(mail, pass)
+                
+                if (usuario != null) {
+                    _foundUser.value = usuario
+                    _uiEvents.emit("✅ Bienvenido, ${usuario.nombre}")
+                    Log.d(TAG, "👤 Login exitoso: ${usuario.nombre}")
+                } else {
+                    Log.e(TAG, "❌ Credenciales no encontradas en la tabla")
+                    _uiEvents.emit("❌ Email o contraseña incorrectos")
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error en login: ${e.message}")
+                _uiEvents.emit("❌ Error al conectar con la base de datos")
+            }
         }
-
-        val user = userList.find { it.id == id }
-        if (user != null) {
-            Log.d(TAG, "✅ Usuario encontrado: ${user.nombre}")
-        } else {
-            Log.d(TAG, "❌ Usuario no encontrado con ID: $id")
-            Log.d(TAG, "📋 IDs disponibles: ${userList.map { it.id }}")
-        }
-        _foundUser.value = user
     }
 
     private fun formatTimestamp(instant: kotlinx.datetime.Instant): String {
@@ -84,84 +78,48 @@ class MainViewModel : ViewModel() {
             localDateTime.monthNumber.toString().padStart(2, '0')}/${
             localDateTime.year} ${
             localDateTime.hour.toString().padStart(2, '0')}:${
-            localDateTime.minute.toString().padStart(2, '0')}:${
-            localDateTime.second.toString().padStart(2, '0')}"
+            localDateTime.minute.toString().padStart(2, '0')}"
     }
 
-    // Procesar tarjeta NFC para fichaje automático
     fun procesarNfcTag(nfcId: String) {
         viewModelScope.launch {
-            Log.d(TAG, "📱 Procesando tarjeta NFC: $nfcId")
-
-            // Buscar usuario por NFC ID
             val usuario = FichajesRepository.getUsuarioByNfcId(nfcId)
-
             if (usuario == null) {
-                _uiEvents.emit("❌ Tarjeta no asociada a ningún usuario")
+                _uiEvents.emit("❌ Tarjeta no registrada")
                 return@launch
             }
-
-            // Buscar último fichaje del usuario
-            val ultimoFichaje = FichajesRepository.getUltimoFichaje(usuario.id)
-
-            val now = Clock.System.now()
-            val tipoFichaje = if (ultimoFichaje == null || ultimoFichaje.tipo == "SALIDA") {
-                "ENTRADA"
-            } else {
-                "SALIDA"
-            }
-
-            val nuevoFichaje = Fichaje(
-                usuarioId = usuario.id,
-                tipo = tipoFichaje,
-                fechaHora = now
-            )
-
-            val success = FichajesRepository.insertFichaje(nuevoFichaje)
-
-            if (success) {
-                val timestampString = formatTimestamp(now)
-                val mensaje = when (tipoFichaje) {
-                    "ENTRADA" -> "✅ ENTRADA de ${usuario.nombre} a las $timestampString"
-                    else -> "✅ SALIDA de ${usuario.nombre} a las $timestampString"
-                }
-                _uiEvents.emit(mensaje)
-            } else {
-                _uiEvents.emit("❌ Error al guardar el fichaje")
-            }
+            realizarFichaje(usuario, null)
         }
     }
 
-    // Asignar tarjeta NFC a un usuario
-    suspend fun asignarNfcAUsuario(usuarioId: Int, nfcId: String): Boolean {
-        Log.d(TAG, "📝 Asignando NFC $nfcId al usuario $usuarioId")
-        return FichajesRepository.asignarNfcAUsuario(usuarioId, nfcId)
+    private suspend fun realizarFichaje(usuario: Usuario, tipoManual: String?) {
+        try {
+            val ultimo = FichajesRepository.getUltimoFichaje(usuario.id)
+            val now = Clock.System.now()
+            
+            val tipo = tipoManual ?: if (ultimo == null || ultimo.tipo == "SALIDA") "ENTRADA" else "SALIDA"
+
+            val fichaje = Fichaje(usuarioId = usuario.id, tipo = tipo, fechaHora = now)
+            val ok = FichajesRepository.insertFichaje(fichaje)
+
+            if (ok) {
+                _uiEvents.emit("✅ $tipo registrada: ${usuario.nombre}")
+            } else {
+                _uiEvents.emit("❌ Error al guardar el fichaje")
+            }
+        } catch (e: Exception) {
+            _uiEvents.emit("❌ Error: ${e.message}")
+        }
     }
 
     fun onClockInClicked() {
         viewModelScope.launch {
             val user = _foundUser.value
             if (user == null) {
-                _uiEvents.emit("❌ Usuario no encontrado. Introduce un ID válido.")
+                _uiEvents.emit("❌ Identifícate primero")
                 return@launch
             }
-
-            Log.d(TAG, "🔄 Procesando fichaje de ENTRADA para ${user.nombre}")
-            val now = Clock.System.now()
-            val nuevoFichaje = Fichaje(
-                usuarioId = user.id,
-                tipo = "ENTRADA",
-                fechaHora = now
-            )
-
-            val success = FichajesRepository.insertFichaje(nuevoFichaje)
-
-            if (success) {
-                val timestampString = formatTimestamp(now)
-                _uiEvents.emit("✅ Fichaje de ENTRADA de ${user.nombre} guardado a las $timestampString")
-            } else {
-                _uiEvents.emit("❌ Error al guardar el fichaje")
-            }
+            realizarFichaje(user, "ENTRADA")
         }
     }
 
@@ -169,26 +127,14 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             val user = _foundUser.value
             if (user == null) {
-                _uiEvents.emit("❌ Usuario no encontrado. Introduce un ID válido.")
+                _uiEvents.emit("❌ Identifícate primero")
                 return@launch
             }
-
-            Log.d(TAG, "🔄 Procesando fichaje de SALIDA para ${user.nombre}")
-            val now = Clock.System.now()
-            val nuevoFichaje = Fichaje(
-                usuarioId = user.id,
-                tipo = "SALIDA",
-                fechaHora = now
-            )
-
-            val success = FichajesRepository.insertFichaje(nuevoFichaje)
-
-            if (success) {
-                val timestampString = formatTimestamp(now)
-                _uiEvents.emit("✅ Fichaje de SALIDA de ${user.nombre} guardado a las $timestampString")
-            } else {
-                _uiEvents.emit("❌ Error al guardar el fichaje")
-            }
+            realizarFichaje(user, "SALIDA")
         }
+    }
+
+    suspend fun asignarNfcAUsuario(usuarioId: Int, nfcId: String): Boolean {
+        return FichajesRepository.asignarNfcAUsuario(usuarioId, nfcId)
     }
 }
