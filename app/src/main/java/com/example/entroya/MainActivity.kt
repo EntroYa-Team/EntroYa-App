@@ -2,14 +2,20 @@ package com.example.entroya
 
 import android.app.AlertDialog
 import android.app.PendingIntent
-import android.content.DialogInterface
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -22,7 +28,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.entroya.data.model.Usuario
 import com.example.entroya.ui.MainViewModel
 import com.example.entroya.ui.UsuarioSpinnerAdapter
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -33,6 +39,27 @@ class MainActivity : AppCompatActivity() {
     private var nfcAdapter: NfcAdapter? = null
     private lateinit var pendingIntent: PendingIntent
 
+    // Receiver para detectar cambios de estado de NFC en tiempo real
+    private val nfcStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action
+            if (action == NfcAdapter.ACTION_ADAPTER_STATE_CHANGED) {
+                val state = intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE, NfcAdapter.STATE_OFF)
+                actualizarEstadoNfc()
+                if (state == NfcAdapter.STATE_ON) {
+                    // Si se activa, rehabilitamos el despacho en primer plano inmediatamente
+                    nfcAdapter?.enableForegroundDispatch(this@MainActivity, pendingIntent, null, null)
+                }
+            }
+        }
+    }
+
+    // UI Screens
+    private lateinit var layoutNfc: LinearLayout
+    private lateinit var layoutManual: LinearLayout
+    private lateinit var layoutFeedback: LinearLayout
+    private lateinit var textFeedback: TextView
+
     // Variables para asignación NFC
     private var nfcIdPendiente: String? = null
     private var modoAsignacion = false
@@ -41,93 +68,113 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_container)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        // Inicializar NFC
-        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
-        if (nfcAdapter == null) {
-            Toast.makeText(this, "Aviso: Dispositivo sin NFC. Usa el acceso manual.", Toast.LENGTH_LONG).show()
+        // Referencias de pantallas y feedback
+        layoutNfc = findViewById(R.id.layout_nfc_screen)
+        layoutManual = findViewById(R.id.layout_manual_screen)
+        layoutFeedback = findViewById(R.id.layout_feedback_overlay)
+        textFeedback = findViewById(R.id.text_feedback_message)
+
+        // Navegación
+        findViewById<TextView>(R.id.text_goto_manual).setOnClickListener {
+            mostrarPantallaManual()
+        }
+        findViewById<TextView>(R.id.text_back_to_nfc).setOnClickListener {
+            mostrarPantallaNfc()
+        }
+        findViewById<TextView>(R.id.text_goto_admin).setOnClickListener {
+            mostrarDialogoAutenticacion()
         }
 
+        layoutFeedback.setOnClickListener {
+            layoutFeedback.visibility = View.GONE
+        }
+
+        // Inicializar NFC
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         pendingIntent = PendingIntent.getActivity(
             this, 0, Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // Referencias del diseño actual
-        val clockInButton: Button = findViewById(R.id.button_clock_in)
-        val clockOutButton: Button = findViewById(R.id.button_clock_out)
-        val adminButton: Button = findViewById(R.id.button_admin)
-        val loginButton: Button = findViewById(R.id.button_login)
-        val emailEditText: EditText = findViewById(R.id.edittext_email)
-        val passwordEditText: EditText = findViewById(R.id.edittext_password)
-        val selectedUserNameTextView: TextView = findViewById(R.id.text_selected_user_name)
-        val nfcStatusTextView: TextView = findViewById(R.id.text_nfc_status)
+        setupManualFichajeWatcher()
 
-        // Mostrar estado de NFC
-        actualizarEstadoNfc(nfcStatusTextView)
-
-        // Lógica de Login Manual
-        loginButton.setOnClickListener {
-            val email = emailEditText.text.toString()
-            val pass = passwordEditText.text.toString()
-            if (email.isNotEmpty() && pass.isNotEmpty()) {
-                viewModel.loginManual(email, pass)
-            } else {
-                Toast.makeText(this, "Completa los campos", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        // Observar el usuario identificado
-        lifecycleScope.launch {
-            viewModel.foundUser.collectLatest { user ->
-                if (user != null) {
-                    selectedUserNameTextView.text = "👤 Usuario: ${user.nombre} (${user.rol})"
-                } else {
-                    selectedUserNameTextView.text = "👤 Usuario: No identificado"
-                }
-            }
-        }
-
-        // Botones de fichaje (Entrada / Salida)
-        clockInButton.setOnClickListener {
-            viewModel.onClockInClicked()
-        }
-
-        clockOutButton.setOnClickListener {
-            viewModel.onClockOutClicked()
-        }
-
-        // Botón de administración
-        adminButton.setOnClickListener {
-            mostrarDialogoAutenticacion()
-        }
-
-        // Mostrar mensajes (Toasts) del ViewModel
         lifecycleScope.launch {
             viewModel.uiEvents.collect { message ->
-                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                mostrarFeedbackGigante(message)
+                if (message.startsWith("✅")) {
+                    limpiarCamposManual()
+                    mostrarPantallaNfc()
+                }
             }
         }
     }
 
-    private fun actualizarEstadoNfc(textView: TextView) {
+    private fun mostrarFeedbackGigante(message: String) {
+        textFeedback.text = message
+        if (message.startsWith("✅")) {
+            textFeedback.setTextColor(android.graphics.Color.parseColor("#2E7D32"))
+        } else {
+            textFeedback.setTextColor(android.graphics.Color.parseColor("#C62828"))
+        }
+        layoutFeedback.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            delay(3000)
+            layoutFeedback.visibility = View.GONE
+        }
+    }
+
+    private fun mostrarPantallaManual() {
+        layoutNfc.visibility = View.GONE
+        layoutManual.visibility = View.VISIBLE
+    }
+
+    private fun mostrarPantallaNfc() {
+        layoutManual.visibility = View.GONE
+        layoutNfc.visibility = View.VISIBLE
+    }
+
+    private fun setupManualFichajeWatcher() {
+        val emailEdit = findViewById<EditText>(R.id.edittext_email_manual)
+        val passEdit = findViewById<EditText>(R.id.edittext_password_manual)
+
+        val watcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val email = emailEdit.text.toString()
+                val pass = passEdit.text.toString()
+                if (email.contains("@") && pass.length >= 4) {
+                    viewModel.loginManualAndClock(email, pass)
+                }
+            }
+        }
+        emailEdit.addTextChangedListener(watcher)
+        passEdit.addTextChangedListener(watcher)
+    }
+
+    private fun limpiarCamposManual() {
+        findViewById<EditText>(R.id.edittext_email_manual).text.clear()
+        findViewById<EditText>(R.id.edittext_password_manual).text.clear()
+    }
+
+    private fun actualizarEstadoNfc() {
+        val textView = findViewById<TextView>(R.id.text_nfc_status)
         if (nfcAdapter == null) {
-            textView.text = "📱 NFC no disponible en este dispositivo"
+            textView.text = "📱 NFC no disponible"
             return
         }
         if (nfcAdapter?.isEnabled == true) {
-            textView.text = if (modoAsignacion) {
-                "📱 MODO ASIGNACIÓN: Acerca la tarjeta"
-            } else {
-                "📱 NFC activado - Acerca tu tarjeta para fichar"
-            }
+            textView.text = if (modoAsignacion) "📱 MODO ASIGNACIÓN: Acerque tarjeta" else "📱 Acerque su tarjeta para fichar"
+            textView.setTextColor(android.graphics.Color.parseColor("#1976D2"))
         } else {
-            textView.text = "⚠️ NFC desactivado - Actívalo en ajustes"
+            textView.text = "⚠️ Active el NFC para fichar"
+            textView.setTextColor(android.graphics.Color.parseColor("#C62828"))
         }
     }
 
@@ -136,34 +183,25 @@ class MainActivity : AppCompatActivity() {
         val editPassword = dialogView.findViewById<EditText>(R.id.edit_password)
 
         AlertDialog.Builder(this)
-            .setTitle("👑 Autenticación de administrador")
+            .setTitle("Autenticación Admin")
             .setView(dialogView)
-            .setPositiveButton("Confirmar", null)
-            .setNegativeButton("Cancelar", null)
-            .create().apply {
-                setOnShowListener { dialogInterface ->
-                    val button = (dialogInterface as AlertDialog).getButton(DialogInterface.BUTTON_POSITIVE)
-                    button.setOnClickListener {
-                        val password = editPassword.text.toString()
-                        if (password == "1234") {
-                            dismiss()
-                            mostrarMenuAsignacion()
-                        } else {
-                            Toast.makeText(this@MainActivity, "❌ Contraseña incorrecta", Toast.LENGTH_SHORT).show()
-                        }
-                    }
+            .setPositiveButton("Entrar") { _, _ ->
+                if (editPassword.text.toString() == "1234") {
+                    mostrarMenuAsignacion()
+                } else {
+                    Toast.makeText(this, "❌ PIN Incorrecto", Toast.LENGTH_SHORT).show()
                 }
-                show()
             }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun mostrarMenuAsignacion() {
         modoAsignacion = true
         nfcIdPendiente = null
-        actualizarEstadoNfc(findViewById(R.id.text_nfc_status))
+        actualizarEstadoNfc()
 
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_asignar_nfc, null)
-        val textNfcId = dialogView.findViewById<TextView>(R.id.text_nfc_id)
         val spinnerUsuarios = dialogView.findViewById<Spinner>(R.id.spinner_usuarios)
         val btnAsignar = dialogView.findViewById<Button>(R.id.btn_asignar)
         val btnCancelar = dialogView.findViewById<Button>(R.id.btn_cancelar)
@@ -176,30 +214,24 @@ class MainActivity : AppCompatActivity() {
 
         btnCancelar.setOnClickListener {
             modoAsignacion = false
-            actualizarEstadoNfc(findViewById(R.id.text_nfc_status))
+            actualizarEstadoNfc()
             dialog.dismiss()
         }
 
         btnAsignar.setOnClickListener {
             val usuario = spinnerUsuarios.selectedItem as? Usuario
             val nfcId = nfcIdPendiente
-            if (usuario == null) {
-                Toast.makeText(this, "❌ Selecciona un usuario", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (nfcId == null) {
-                Toast.makeText(this, "❌ Acerca una tarjeta NFC primero", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            lifecycleScope.launch {
-                if (viewModel.asignarNfcAUsuario(usuario.id, nfcId)) {
-                    Toast.makeText(this@MainActivity, "✅ Tarjeta asignada", Toast.LENGTH_LONG).show()
-                    modoAsignacion = false
-                    actualizarEstadoNfc(findViewById(R.id.text_nfc_status))
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(this@MainActivity, "❌ Error al asignar", Toast.LENGTH_LONG).show()
+            if (usuario != null && nfcId != null) {
+                lifecycleScope.launch {
+                    if (viewModel.asignarNfcAUsuario(usuario.id, nfcId)) {
+                        Toast.makeText(this@MainActivity, "✅ Vinculado", Toast.LENGTH_SHORT).show()
+                        modoAsignacion = false
+                        actualizarEstadoNfc()
+                        dialog.dismiss()
+                    }
                 }
+            } else {
+                Toast.makeText(this, "Falta seleccionar usuario o leer tarjeta", Toast.LENGTH_SHORT).show()
             }
         }
         dialog.show()
@@ -207,11 +239,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Registrar el receptor de cambios de estado NFC
+        val intentFilter = IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED)
+        registerReceiver(nfcStateReceiver, intentFilter)
+        
         nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
+        actualizarEstadoNfc()
     }
 
     override fun onPause() {
         super.onPause()
+        // Desregistrar el receptor para evitar fugas de memoria
+        unregisterReceiver(nfcStateReceiver)
         nfcAdapter?.disableForegroundDispatch(this)
     }
 
@@ -219,17 +258,15 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         if (NfcAdapter.ACTION_TECH_DISCOVERED == intent.action || NfcAdapter.ACTION_TAG_DISCOVERED == intent.action) {
             val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
-            tag?.let { procesarTarjetaNfc(it) }
-        }
-    }
-
-    private fun procesarTarjetaNfc(tag: Tag) {
-        val tagId = bytesToHex(tag.id)
-        if (modoAsignacion) {
-            nfcIdPendiente = tagId
-            findViewById<TextView>(R.id.text_nfc_id)?.text = "ID: $tagId"
-        } else {
-            viewModel.procesarNfcTag(tagId)
+            tag?.let {
+                val tagId = bytesToHex(it.id)
+                if (modoAsignacion) {
+                    nfcIdPendiente = tagId
+                    Toast.makeText(this, "ID Detectado: $tagId", Toast.LENGTH_SHORT).show()
+                } else {
+                    viewModel.procesarNfcTag(tagId)
+                }
+            }
         }
     }
 

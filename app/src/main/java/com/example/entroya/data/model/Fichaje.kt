@@ -1,12 +1,8 @@
 package com.example.entroya.data.model
 
-import kotlinx.datetime.Instant
-import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
-import kotlin.OptIn
 
-@OptIn(InternalSerializationApi::class)
 @Serializable
 data class Fichaje(
     @SerialName("id")
@@ -16,9 +12,7 @@ data class Fichaje(
     @SerialName("tipo")
     val tipo: String,
     @SerialName("fecha_hora")
-    @Serializable(with = InstantSerializer::class)
-    val fechaHora: Instant,
+    val fechaHora: String, // Cambiado a String para enviar hora local exacta
     @SerialName("dispositivo")
     val dispositivo: String = "Móvil"
 )
-

@@ -13,9 +13,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainViewModel : ViewModel() {
 
@@ -45,40 +45,23 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun loginManual(emailInput: String, passwordInput: String) {
+    fun loginManualAndClock(emailInput: String, passwordInput: String) {
         val mail = emailInput.trim()
         val pass = passwordInput.trim()
 
+        if (mail.isEmpty() || pass.isEmpty()) return
+
         viewModelScope.launch {
             try {
-                Log.d(TAG, "🔍 Buscando credenciales en la tabla 'usuarios'...")
-                
-                // Buscamos directamente en la tabla por email y contraseña
                 val usuario = FichajesRepository.getUsuarioByCredentials(mail, pass)
-                
                 if (usuario != null) {
                     _foundUser.value = usuario
-                    _uiEvents.emit("✅ Bienvenido, ${usuario.nombre}")
-                    Log.d(TAG, "👤 Login exitoso: ${usuario.nombre}")
-                } else {
-                    Log.e(TAG, "❌ Credenciales no encontradas en la tabla")
-                    _uiEvents.emit("❌ Email o contraseña incorrectos")
+                    realizarFichaje(usuario, null)
                 }
-                
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error en login: ${e.message}")
-                _uiEvents.emit("❌ Error al conectar con la base de datos")
+                Log.e(TAG, "Error en login automático: ${e.message}")
             }
         }
-    }
-
-    private fun formatTimestamp(instant: kotlinx.datetime.Instant): String {
-        val localDateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-        return "${localDateTime.dayOfMonth.toString().padStart(2, '0')}/${
-            localDateTime.monthNumber.toString().padStart(2, '0')}/${
-            localDateTime.year} ${
-            localDateTime.hour.toString().padStart(2, '0')}:${
-            localDateTime.minute.toString().padStart(2, '0')}"
     }
 
     fun procesarNfcTag(nfcId: String) {
@@ -95,42 +78,54 @@ class MainViewModel : ViewModel() {
     private suspend fun realizarFichaje(usuario: Usuario, tipoManual: String?) {
         try {
             val ultimo = FichajesRepository.getUltimoFichaje(usuario.id)
-            val now = Clock.System.now()
-            
+            val now = Date()
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+            // 🛡️ CONTROL ANTIDOUBLE-TAP (5 MINUTOS)
+            if (ultimo != null) {
+                try {
+                    // Intentamos parsear la fecha. Supabase puede devolverla con T o espacio.
+                    val fechaLimpia = ultimo.fechaHora.replace("T", " ").split(".")[0]
+                    val lastDate = sdf.parse(fechaLimpia)
+                    
+                    if (lastDate != null) {
+                        val diffMs = now.time - lastDate.time
+                        val diffMin = diffMs / 60000
+                        val diffSec = (diffMs / 1000) % 60
+
+                        if (diffMin < 5) {
+                            val minRestantes = 4 - diffMin
+                            val secRestantes = 59 - diffSec
+                            _uiEvents.emit("⏳ Espera $minRestantes min $secRestantes seg para volver a fichar")
+                            return
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error comparando fechas: ${e.message}")
+                }
+            }
+
+            // Si pasa el filtro, procedemos a fichar
+            val fechaHoraString = sdf.format(now)
             val tipo = tipoManual ?: if (ultimo == null || ultimo.tipo == "SALIDA") "ENTRADA" else "SALIDA"
 
-            val fichaje = Fichaje(usuarioId = usuario.id, tipo = tipo, fechaHora = now)
+            val fichaje = Fichaje(
+                usuarioId = usuario.id, 
+                tipo = tipo, 
+                fechaHora = fechaHoraString
+            )
+            
             val ok = FichajesRepository.insertFichaje(fichaje)
 
             if (ok) {
                 _uiEvents.emit("✅ $tipo registrada: ${usuario.nombre}")
+                _foundUser.value = null 
             } else {
                 _uiEvents.emit("❌ Error al guardar el fichaje")
             }
         } catch (e: Exception) {
             _uiEvents.emit("❌ Error: ${e.message}")
-        }
-    }
-
-    fun onClockInClicked() {
-        viewModelScope.launch {
-            val user = _foundUser.value
-            if (user == null) {
-                _uiEvents.emit("❌ Identifícate primero")
-                return@launch
-            }
-            realizarFichaje(user, "ENTRADA")
-        }
-    }
-
-    fun onClockOutClicked() {
-        viewModelScope.launch {
-            val user = _foundUser.value
-            if (user == null) {
-                _uiEvents.emit("❌ Identifícate primero")
-                return@launch
-            }
-            realizarFichaje(user, "SALIDA")
+            Log.e(TAG, "Error en realizarFichaje: ${e.message}")
         }
     }
 
