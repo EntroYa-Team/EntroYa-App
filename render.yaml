@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: EntroYa-App
-    runtime: java
-    plan: free
-    buildCommand: ./mvnw clean package -DskipTests
-    startCommand: java -Xmx384m -Xms128m -jar target/EntroYa-0.0.1-SNAPSHOT.jar
